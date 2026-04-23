@@ -174,6 +174,103 @@ jarvis-browser-chatbot/
 - 로깅: structlog JSON 포맷
 - CDP/Playwright 호출: 반드시 try-except + 재시도
 
+## 대화 메모리 시스템
+
+챗봇 앱이 OpenClaw/LLM 앞에서 미들웨어로 동작하며, 3계층 메모리를 관리한다.
+LLM의 tool calling에 의존하지 않고, 앱 레이어에서 자체 처리한다.
+
+### 아키텍처
+
+```
+User (WebSocket)
+  → message_handler (수신)
+    → memory_middleware (before)
+      ├─ 대화 로그 기록 (conversations/{user_id}.jsonl)
+      ├─ 메시지 수 체크 → 임계값 초과 시 요약 생성
+      ├─ 프로필 로드 (profiles/{user_id}.json)
+      ├─ 이전 요약 로드 (summaries/)
+      └─ 벡터DB 관련 기억 검색 (ChromaDB)
+    → 컨텍스트 보강된 프롬프트 조립
+    → LangGraph Router / OpenClaw 호출
+    → memory_middleware (after)
+      ├─ 응답 대화 로그 기록
+      ├─ 프로필 업데이트 (새로 알게 된 정보 추출)
+      └─ 세션 종료 감지 시 ChromaDB 영구 저장
+  → response_handler (WebSocket 응답)
+```
+
+### 메모리 3계층
+
+| 계층 | 저장소 | 트리거 | 용도 |
+|------|--------|--------|------|
+| 단기 | 인메모리 dict (`active_sessions`) | 매 메시지 | 현재 대화 컨텍스트 유지 |
+| 중기 | `data/summaries/{user_id}/` | 메시지 20턴 초과 시 | 오래된 대화 압축, 토큰 절약 |
+| 장기 | `data/chroma/` + `data/profiles/` | 세션 종료 시 | 세션 간 기억 유지, 가족별 프로필 |
+
+### 디렉토리 (backend/ 하위)
+
+```
+backend/
+├── app/
+│   ├── memory/                       # 메모리 시스템 (NEW)
+│   │   ├── middleware.py             # FastAPI 미들웨어 — before/after 처리
+│   │   ├── memory_store.py           # ChromaDB CRUD 래퍼
+│   │   ├── summarizer.py             # LLM 기반 대화 요약 엔진
+│   │   ├── user_profile.py           # 가족 구성원별 프로필 관리
+│   │   └── context_builder.py        # 프롬프트 컨텍스트 조립기
+│   ...
+├── data/                             # 메모리 영구 저장 (gitignore)
+│   ├── chroma/                       # 벡터DB
+│   ├── profiles/                     # 가족별 JSON 프로필
+│   ├── summaries/                    # 대화 요약 로그
+│   └── conversations/                # 대화 원본 (JSONL)
+```
+
+### 구현 규칙
+
+1. **middleware.py는 FastAPI의 WebSocket 핸들러에 직접 통합** — HTTP 미들웨어가 아닌, `websocket/manager.py`의 메시지 수신/발신 시점에 호출
+2. **가족 구성원 구분은 userId 기준** — WebSocket 세션의 userId로 프로필/대화로그/요약 분리
+3. **요약 모델은 LM Studio 로컬 LLM 사용** — `http://localhost:1234/v1/chat/completions` (비용 $0)
+4. **임베딩은 Ollama nomic-embed-text** — `http://localhost:11434/api/embed` (비용 $0)
+5. **ChromaDB는 PersistentClient** — `data/chroma/` 경로, 서버 모드 아닌 임베디드
+6. **"기억해둬" 패턴 매칭** — LLM tool calling 없이, message_handler에서 정규식으로 감지 → memory_store 직접 저장
+7. **프로필 업데이트는 비동기** — 응답 반환 후 백그라운드로 LLM에게 프로필 정보 추출 요청
+8. **요약은 점진적(incremental)** — 이전 요약 + 새 대화 → 통합 요약, 컨텍스트가 계속 압축됨
+9. **민감 정보 저장 금지** — 비밀번호, API 키, 금융 정보는 memory_store에 저장하지 않음
+10. **컨텍스트 주입 시 토큰 예산** — 프로필 800자 + 요약 1200자 + 벡터 검색 3건 = 최대 ~3000자
+
+### WebSocket 메시지 확장
+
+기존 `{ type, payload, userId, timestamp }` 포맷에 메모리 관련 타입 추가:
+
+```typescript
+// 클라이언트 → 서버
+{ type: "memory_save", payload: { content: "기억할 내용" }, userId, timestamp }
+{ type: "memory_search", payload: { query: "검색어" }, userId, timestamp }
+{ type: "memory_forget", payload: { query: "삭제 대상" }, userId, timestamp }
+
+// 서버 → 클라이언트
+{ type: "memory_result", payload: { results: [...], total: N }, userId, timestamp }
+{ type: "memory_status", payload: { action: "saved"|"deleted"|"summarized", detail: "..." }, userId, timestamp }
+```
+
+### 설정 (환경변수)
+
+```env
+# 메모리 시스템
+MEMORY_SUMMARIZE_THRESHOLD=20        # 요약 트리거 메시지 수
+MEMORY_KEEP_RECENT=6                 # 요약 후 유지할 최근 메시지
+MEMORY_MAX_CONTEXT_CHARS=3000        # 컨텍스트 주입 최대 글자 수
+MEMORY_EMBEDDING_MODEL=nomic-embed-text
+MEMORY_CHROMA_PATH=./data/chroma
+```
+
+### 의존성 추가 (requirements.txt)
+
+```
+chromadb>=0.5.0
+```
+
 ## 핵심 제약사항
 
 1. Chrome 136+: `--remote-debugging-port`에 `--user-data-dir` 필수 동반

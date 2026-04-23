@@ -392,3 +392,59 @@ echo "  /plugin marketplace add revfactory/harness"
 echo "  /plugin install harness@harness"
 echo "  > 하네스 구성해줘"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ── Claude Code 최적화 설정 ─────────────────────────
+echo ""
+echo "⚡ Claude Code 토큰 최적화 적용 중..."
+
+# 최적화 스크립트를 프로젝트에 복사
+SCRIPTS_DIR="$PROJECT_DIR/scripts"
+mkdir -p "$SCRIPTS_DIR"
+
+# scaffold.sh와 같은 폴더의 setup-claude-optimization.sh를 복사
+if [ -f "$SCRIPT_DIR/setup-claude-optimization.sh" ]; then
+    cp "$SCRIPT_DIR/setup-claude-optimization.sh" "$SCRIPTS_DIR/"
+    chmod +x "$SCRIPTS_DIR/setup-claude-optimization.sh"
+
+    # 프로젝트 레벨 설정만 적용 (글로벌 환경변수는 한 번만)
+    bash "$SCRIPTS_DIR/setup-claude-optimization.sh" "$PROJECT_DIR"
+else
+    echo "  ⚠️ setup-claude-optimization.sh를 찾을 수 없습니다."
+    echo "  수동으로 scripts/ 폴더에 복사해주세요."
+fi
+
+# ── .gitignore에 최적화 관련 항목 추가 ──────────────
+GITIGNORE="$PROJECT_DIR/.gitignore"
+if [ -f "$GITIGNORE" ]; then
+    if ! grep -q ".claude/reports" "$GITIGNORE" 2>/dev/null; then
+        cat >> "$GITIGNORE" << 'GI_EOF'
+
+# Claude Code
+.claude/reports/
+.claude/verifier-scripts/__pycache__/
+
+# Memory system data
+data/chroma/
+data/conversations/
+data/summaries/
+data/.locks/
+GI_EOF
+    fi
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ 프로젝트 생성 완료: $PROJECT_NAME"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "📋 시작하기:"
+echo "   cd $PROJECT_NAME"
+echo "   source ~/.zshrc       # 환경변수 적용"
+echo "   cco                   # 최적화 모드로 Claude Code 실행"
+echo ""
+echo "🔧 Claude Code 실행 모드:"
+echo "   cc   → 기본 (환경변수 최적화만)"
+echo "   cco  → 일반 작업 (MCP 제한 + 프롬프트 축소)"
+echo "   ccw  → 워커 모드 (비대화형, 최대 절약)"
+echo ""
+
