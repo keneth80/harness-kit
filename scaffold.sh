@@ -125,29 +125,39 @@ echo ""
 echo "===== 워크플로우 모드 ====="
 echo ""
 echo "1) 간단 (기존 동작) — 바로 구현 시작"
-echo "2) 풀 사이클 — 기획 → UI 설계 → 테스트 케이스 → 구현 → 검증"
+echo "2) 풀 사이클 (goal.md 기반) — 기획 → 스캐폴딩 → UI → 테스트 → 구현 → 검증"
+echo "3) 풀 사이클 (PRD 직접 진입) — 이미 PRD가 있을 때 ui-planner 건너뛰고 architect로 직행"
 echo ""
-read -p "워크플로우 모드 [1: 간단, 2: 풀 사이클]: " WORKFLOW_MODE
+read -p "워크플로우 모드 [1: 간단, 2: 풀 사이클, 3: PRD]: " WORKFLOW_MODE
 WORKFLOW_MODE=${WORKFLOW_MODE:-1}
+
+PROJECT_TOPIC=""
+BENCHMARK_URLS=""
+REQUIREMENTS_RAW=""
+PRD_SOURCE=""
 
 if [ "$WORKFLOW_MODE" = "2" ]; then
   echo ""
   echo "===== 프로젝트 목표 입력 ====="
   echo ""
-
-  # 1. 주제 입력
   read -p "프로젝트 주제 또는 한 줄 설명: " PROJECT_TOPIC
-
-  # 2. 벤치마크 URL (선택)
   echo ""
   echo "벤치마킹할 URL이 있으면 입력 (없으면 엔터, 여러 개면 쉼표로 구분)"
   read -p "URL: " BENCHMARK_URLS
-
-  # 3. 간단한 요구사항
   echo ""
   echo "간단한 요구사항을 입력하세요 (한 줄로 입력, 엔터로 종료)"
   echo "예: 일본어 건강 영상을 자동 생성하는 앱. ElevenLabs 음성 사용. 무료 운영."
   read -p "요구사항: " REQUIREMENTS_RAW
+
+elif [ "$WORKFLOW_MODE" = "3" ]; then
+  echo ""
+  echo "===== PRD 직접 진입 ====="
+  echo ""
+  echo "기존 PRD 파일 경로를 입력하세요 (절대경로 또는 현재 디렉토리 기준 상대경로)."
+  echo "엔터를 누르면 빈 docs/prd.md가 생성되어 나중에 직접 채울 수 있습니다."
+  read -p "PRD 경로: " PRD_SOURCE
+  echo ""
+  read -p "이 PRD가 다루는 도메인을 한 줄로 설명: " PROJECT_TOPIC
 fi
 
 # ============================================================================
@@ -158,24 +168,29 @@ cp -r "$TEMPLATE_DIR" "$PROJECT_DIR"
 echo "   → $PROJECT_DIR"
 
 # ============================================================================
-# 2. CLAUDE.md 프로젝트명/도메인 치환
+# 2. CLAUDE.md 메타블록 치환
 # ============================================================================
 echo "📝 CLAUDE.md 커스터마이징..."
 
-# 프로젝트명 치환
-sed -i.bak "s/# JARVIS Browser Chatbot/# $PROJECT_NAME/" "$PROJECT_DIR/CLAUDE.md"
+CREATED_DATE=$(date +%Y-%m-%d)
+HARNESS_NAME="$PROJECT_NAME"
+HARNESS_GOAL="${PROJECT_TOPIC:-($DOMAIN 도메인 프로젝트)}"
+ORCHESTRATOR_SKILL_NAME="${PROJECT_NAME}-orchestrator"
+HARNESS_TRIGGER_KEYWORDS="${PROJECT_NAME}, $DOMAIN"
 
-# 생성일 추가 (프로젝트 개요 첫 줄 뒤에)
-sed -i.bak "s/JARVIS Home AI OS의 브라우저 자동화.*/$PROJECT_NAME — 도메인: $DOMAIN, 생성일: $(date +%Y-%m-%d)/" "$PROJECT_DIR/CLAUDE.md"
-
-# 의사결정 이력에 설정 추가
-cat >> "$PROJECT_DIR/CLAUDE.md" << APPEND
-
-## 초기 설정 (scaffold 생성)
-- DB: $DB_TYPE
-- 모니터링: $MONITORING
-- 로컬 LLM: $LLM_TYPE
-APPEND
+# {{}} 변수 일괄 치환 (sed -i 호환을 위해 macOS .bak 트릭 사용)
+sed -i.bak \
+    -e "s|{{PROJECT_NAME}}|$PROJECT_NAME|g" \
+    -e "s|{{HARNESS_NAME}}|$HARNESS_NAME|g" \
+    -e "s|{{HARNESS_GOAL}}|$HARNESS_GOAL|g" \
+    -e "s|{{ORCHESTRATOR_SKILL_NAME}}|$ORCHESTRATOR_SKILL_NAME|g" \
+    -e "s|{{HARNESS_TRIGGER_KEYWORDS}}|$HARNESS_TRIGGER_KEYWORDS|g" \
+    -e "s|{{CREATED_DATE}}|$CREATED_DATE|g" \
+    -e "s|{{DOMAIN}}|$DOMAIN|g" \
+    -e "s|{{DB_TYPE}}|$DB_TYPE|g" \
+    -e "s|{{MONITORING}}|$MONITORING|g" \
+    -e "s|{{LLM_TYPE}}|$LLM_TYPE|g" \
+    "$PROJECT_DIR/CLAUDE.md"
 
 rm -f "$PROJECT_DIR/CLAUDE.md.bak"
 
@@ -461,10 +476,11 @@ GI_EOF
     fi
 fi
 
-if [ "$WORKFLOW_MODE" = "2" ]; then
-  mkdir -p "$PROJECT_NAME/docs"
-  
-  cat > "$PROJECT_NAME/docs/goal.md" <<EOF
+if [ "$WORKFLOW_MODE" = "2" ] || [ "$WORKFLOW_MODE" = "3" ]; then
+  mkdir -p "$PROJECT_DIR/docs"
+
+  if [ "$WORKFLOW_MODE" = "2" ]; then
+    cat > "$PROJECT_DIR/docs/goal.md" <<EOF
 # 프로젝트 목표
 
 ## 한 줄 설명
@@ -478,35 +494,110 @@ $REQUIREMENTS_RAW
 
 ## 메타데이터
 - 도메인: ${DOMAIN:-general}
-- 워크플로우 모드: 풀 사이클
+- 워크플로우 모드: 풀 사이클 (goal 기반)
 - 생성 시각: $(date "+%Y-%m-%d %H:%M:%S")
 
 ---
 
 > 이 문서는 scaffold.sh 실행 시 사용자가 입력한 원본 목표입니다.
-> planner 에이전트가 이를 기반으로 추가 질문을 통해 requirements.md, spec.md를 생성합니다.
+> ui-planner 에이전트가 이를 기반으로 추가 질문을 통해 requirements.md, spec.md를 생성합니다.
 > **이 파일은 수정하지 마세요.** 목표가 바뀌면 새 프로젝트를 만드세요.
 EOF
+    echo ""
+    echo "✓ docs/goal.md 생성 완료"
+  fi
 
-  # 워크플로우 모드를 .claude/settings.json에 기록 (있다면)
-  if [ -f "$PROJECT_NAME/.claude/settings.json" ]; then
-    # jq가 있으면 깨끗하게, 없으면 단순 sed (기존 settings 보존)
-    if command -v jq >/dev/null 2>&1; then
-      tmpfile=$(mktemp)
-      jq '. + {workflow_mode: "full_cycle"}' "$PROJECT_NAME/.claude/settings.json" > "$tmpfile" \
-        && mv "$tmpfile" "$PROJECT_NAME/.claude/settings.json"
+  if [ "$WORKFLOW_MODE" = "3" ]; then
+    if [ -n "$PRD_SOURCE" ] && [ -f "$PRD_SOURCE" ]; then
+      cp "$PRD_SOURCE" "$PROJECT_DIR/docs/prd.md"
+      echo ""
+      echo "✓ docs/prd.md를 $PRD_SOURCE 에서 복사 완료"
+    else
+      cat > "$PROJECT_DIR/docs/prd.md" <<EOF
+# 프로젝트 PRD
+
+## 도메인 / 한 줄 설명
+${PROJECT_TOPIC:-(여기를 채워주세요)}
+
+## 사용자 시나리오
+- (시나리오 1)
+
+## 핵심 기능
+- (F1)
+- (F2)
+
+## 데이터 모델
+- (엔티티 / 필드)
+
+## API 엔드포인트 (백엔드 있는 경우)
+- (메서드 / 경로 / 입출력)
+
+## 화면 (UI 있는 경우)
+- (ScreenA / ScreenB / ...)
+
+## 비기능 요구사항
+- 성능 / 비용 / 보안
+
+---
+
+> PRD 직접 진입 모드로 생성됨. ui-planner를 건너뛰고 architect를 직접 호출할 수 있습니다.
+> 위 항목을 채운 뒤 \`/architect\` 또는 "architect 에이전트로 스캐폴딩"이라고 요청하세요.
+EOF
+      echo ""
+      echo "✓ docs/prd.md 빈 템플릿 생성 (직접 채우세요)"
     fi
   fi
 
-  echo ""
-  echo "✓ docs/goal.md 생성 완료"
+  # 워크플로우 모드를 .claude/settings.json에 기록 (있다면)
+  if [ -f "$PROJECT_DIR/.claude/settings.json" ] && command -v jq >/dev/null 2>&1; then
+    tmpfile=$(mktemp)
+    jq '. + {workflow_mode: "full_cycle"}' "$PROJECT_DIR/.claude/settings.json" > "$tmpfile" \
+      && mv "$tmpfile" "$PROJECT_DIR/.claude/settings.json"
+  fi
+
+  # ── 오케스트레이터 슬롯 인스턴스 생성 ────────────────
+  # 도메인 비종속 슬롯 템플릿(.claude/skills/orchestrator)을 복사해 프로젝트 전용 트리거 부여.
+  ORCH_SRC="$PROJECT_DIR/.claude/skills/orchestrator"
+  ORCH_DST="$PROJECT_DIR/.claude/skills/${PROJECT_NAME}-orchestrator"
+  if [ -d "$ORCH_SRC" ] && [ ! -d "$ORCH_DST" ]; then
+    cp -r "$ORCH_SRC" "$ORCH_DST"
+    if [ -f "$ORCH_DST/SKILL.md" ]; then
+      ORCH_TRIGGER="${PROJECT_NAME}|${DOMAIN}|오케스트레이션|풀 사이클|파이프라인"
+      # 파이프(|) 충돌을 피하려고 sed 구분자를 # 로 사용
+      sed -i.bak \
+          -e "s#{{PROJECT_NAME}}#${PROJECT_NAME}#g" \
+          -e "s#{{ORCHESTRATOR_TRIGGER}}#${ORCH_TRIGGER}#g" \
+          "$ORCH_DST/SKILL.md"
+      rm -f "$ORCH_DST/SKILL.md.bak"
+    fi
+    echo "✓ 오케스트레이터 슬롯 생성: .claude/skills/${PROJECT_NAME}-orchestrator/"
+  fi
+
+  # ── _workspace 디렉토리 준비 ─────────────────────
+  mkdir -p "$PROJECT_DIR/_workspace"
+  cat > "$PROJECT_DIR/_workspace/00_context_snapshot.md" <<WS
+# Context Snapshot
+
+생성: $(date "+%Y-%m-%d %H:%M:%S")
+모드: 풀 사이클 ($([ "$WORKFLOW_MODE" = "3" ] && echo "PRD 직접 진입" || echo "goal.md 기반"))
+
+## 다음 액션
+$([ "$WORKFLOW_MODE" = "3" ] && echo "- /architect 또는 'architect 에이전트로 스캐폴딩 생성' 요청" || echo "- /plan-start 또는 'ui-planner로 기획 시작' 요청")
+
+## 진행 상황
+- (각 에이전트가 자기 보고서를 _workspace/{NN}_*.md에 누적)
+WS
+  echo "✓ _workspace/ 컨벤션 디렉토리 생성"
+
   echo ""
   echo "다음 단계:"
   echo "  cd $PROJECT_NAME"
   echo "  claude"
-  echo "  > /plan-start"
-  echo ""
-  echo "또는 메인 세션에서 직접 'planner 에이전트로 기획 시작'이라고 말하면 됩니다."
+  if [ "$WORKFLOW_MODE" = "3" ]; then
+    echo "  > /architect      # PRD 기반 스캐폴딩 직행"
+  else
+    echo "  > /plan-start     # ui-planner로 기획 시작"
+  fi
 else
   echo ""
   echo "✓ 간단 모드로 생성 완료. 기존처럼 /dev-start로 시작하세요."
