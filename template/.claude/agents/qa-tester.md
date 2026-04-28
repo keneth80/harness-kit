@@ -6,6 +6,7 @@ tools:
   - Grep
   - Glob
   - Bash
+model: haiku
 ---
 
 # QA Tester Agent
