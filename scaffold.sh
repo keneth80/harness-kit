@@ -121,6 +121,35 @@ echo "  DB=$DB_TYPE | 모니터링=$MONITORING | LLM=$LLM_TYPE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+echo ""
+echo "===== 워크플로우 모드 ====="
+echo ""
+echo "1) 간단 (기존 동작) — 바로 구현 시작"
+echo "2) 풀 사이클 — 기획 → UI 설계 → 테스트 케이스 → 구현 → 검증"
+echo ""
+read -p "워크플로우 모드 [1: 간단, 2: 풀 사이클]: " WORKFLOW_MODE
+WORKFLOW_MODE=${WORKFLOW_MODE:-1}
+
+if [ "$WORKFLOW_MODE" = "2" ]; then
+  echo ""
+  echo "===== 프로젝트 목표 입력 ====="
+  echo ""
+
+  # 1. 주제 입력
+  read -p "프로젝트 주제 또는 한 줄 설명: " PROJECT_TOPIC
+
+  # 2. 벤치마크 URL (선택)
+  echo ""
+  echo "벤치마킹할 URL이 있으면 입력 (없으면 엔터, 여러 개면 쉼표로 구분)"
+  read -p "URL: " BENCHMARK_URLS
+
+  # 3. 간단한 요구사항
+  echo ""
+  echo "간단한 요구사항을 입력하세요 (한 줄로 입력, 엔터로 종료)"
+  echo "예: 일본어 건강 영상을 자동 생성하는 앱. ElevenLabs 음성 사용. 무료 운영."
+  read -p "요구사항: " REQUIREMENTS_RAW
+fi
+
 # ============================================================================
 # 1. 템플릿 복사
 # ============================================================================
@@ -430,6 +459,57 @@ data/summaries/
 data/.locks/
 GI_EOF
     fi
+fi
+
+if [ "$WORKFLOW_MODE" = "2" ]; then
+  mkdir -p "$PROJECT_NAME/docs"
+  
+  cat > "$PROJECT_NAME/docs/goal.md" <<EOF
+# 프로젝트 목표
+
+## 한 줄 설명
+$PROJECT_TOPIC
+
+## 벤치마크 참고 URL
+${BENCHMARK_URLS:-(없음)}
+
+## 사용자 입력 요구사항
+$REQUIREMENTS_RAW
+
+## 메타데이터
+- 도메인: ${DOMAIN:-general}
+- 워크플로우 모드: 풀 사이클
+- 생성 시각: $(date "+%Y-%m-%d %H:%M:%S")
+
+---
+
+> 이 문서는 scaffold.sh 실행 시 사용자가 입력한 원본 목표입니다.
+> planner 에이전트가 이를 기반으로 추가 질문을 통해 requirements.md, spec.md를 생성합니다.
+> **이 파일은 수정하지 마세요.** 목표가 바뀌면 새 프로젝트를 만드세요.
+EOF
+
+  # 워크플로우 모드를 .claude/settings.json에 기록 (있다면)
+  if [ -f "$PROJECT_NAME/.claude/settings.json" ]; then
+    # jq가 있으면 깨끗하게, 없으면 단순 sed (기존 settings 보존)
+    if command -v jq >/dev/null 2>&1; then
+      tmpfile=$(mktemp)
+      jq '. + {workflow_mode: "full_cycle"}' "$PROJECT_NAME/.claude/settings.json" > "$tmpfile" \
+        && mv "$tmpfile" "$PROJECT_NAME/.claude/settings.json"
+    fi
+  fi
+
+  echo ""
+  echo "✓ docs/goal.md 생성 완료"
+  echo ""
+  echo "다음 단계:"
+  echo "  cd $PROJECT_NAME"
+  echo "  claude"
+  echo "  > /plan-start"
+  echo ""
+  echo "또는 메인 세션에서 직접 'planner 에이전트로 기획 시작'이라고 말하면 됩니다."
+else
+  echo ""
+  echo "✓ 간단 모드로 생성 완료. 기존처럼 /dev-start로 시작하세요."
 fi
 
 echo ""
