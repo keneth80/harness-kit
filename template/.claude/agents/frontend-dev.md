@@ -63,9 +63,37 @@ tools: Read, Write, Edit, Bash, Grep, Glob
    - TypeScript: `tsc --noEmit`로 타입 에러 확인
    - 빌드 에러는 다음 단계로 넘기지 않음
 
-3. **검증 요청**:
-   - 메인 세션에 "code-verifier로 검증 요청"이라고 명시
-   - 메인 세션이 자동으로 code-verifier를 호출하도록 함
+3. **작업 보고서 갱신** — `_workspace/02_frontend_report.md`에 화면별 섹션을 누적 추가:
+
+   ```markdown
+   ## {YYYY-MM-DD HH:MM} — {화면 이름}
+
+   ### 구현한 화면 ID / 기능 ID
+   - ScreenA (F1, F2)
+
+   ### 추가/수정한 컴포넌트
+   - frontend/src/pages/ScreenA.tsx
+   - frontend/src/components/TextAreaSection.tsx
+   - frontend/src/hooks/useTopics.ts
+
+   ### 호출하는 API
+   - POST /api/topics/extract → useTopics 훅
+
+   ### 상태 UI (3가지 모두 구현 확인)
+   - idle: ✅
+   - loading: ✅ (스피너)
+   - error: ✅ (토스트)
+
+   ### 미완/주의
+   - 다크모드 색상 토큰 미적용 (ui-spec.md 추가 시 반영)
+
+   ### 다음 액션
+   - qa-engineer에게 boundary 검증 요청 (백엔드 응답과 타입 일치 확인)
+   ```
+
+4. **검증 요청**:
+   - 메인 세션에 "code-verifier로 검증 요청 + qa-engineer로 boundary 검증 요청"이라고 명시
+   - 메인 세션이 자동으로 두 에이전트를 호출하도록 함
 
 ## 절대 어기지 말 것
 

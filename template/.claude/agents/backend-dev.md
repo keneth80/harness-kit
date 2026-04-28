@@ -65,9 +65,34 @@ tools: Read, Write, Edit, Bash, Grep, Glob
    - Python: `ruff check src/`로 린트 확인
    - 빌드/타입 에러 없는지 확인
 
-3. **검증 요청**:
-   - 메인 세션에 "code-verifier로 검증 요청"이라고 명시
-   - 메인 세션이 자동으로 code-verifier를 호출하도록 함
+3. **작업 보고서 갱신** — `_workspace/02_backend_report.md`에 모듈별 섹션을 누적 추가:
+
+   ```markdown
+   ## {YYYY-MM-DD HH:MM} — {모듈 이름}
+
+   ### 구현한 기능 ID
+   - F1 (주제 입력 처리)
+   - F2 (감정 분류)
+
+   ### 추가/수정한 파일
+   - backend/src/api/topics.py
+   - backend/src/services/sentiment.py
+
+   ### 노출 엔드포인트
+   - POST /api/topics/extract
+   - GET /api/sentiments/{id}
+
+   ### 미완/주의
+   - Claude API 키 미설정 시 mock으로 폴백 동작 (env.example 참조)
+
+   ### 다음 액션
+   - frontend-dev에게 응답 shape 공유 (shared/types/api.ts 갱신 완료)
+   - qa-engineer에게 boundary 검증 요청
+   ```
+
+4. **검증 요청**:
+   - 메인 세션에 "code-verifier로 검증 요청 + qa-engineer로 boundary 검증 요청"이라고 명시
+   - 메인 세션이 자동으로 두 에이전트를 호출하도록 함
 
 ## 절대 어기지 말 것
 

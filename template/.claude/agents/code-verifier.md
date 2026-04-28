@@ -73,6 +73,9 @@ npm test -- --testPathPattern='F1|F2'
 
 ### 4단계: docs/verification-report.md 작성
 
+`docs/verification-report.md`는 단일 코드 단위 검증의 권위 있는 산출물입니다 (덮어쓰기).
+부가적으로 `_workspace/`에는 별도 누적 기록을 남기지 않습니다 — code-verifier는 스냅샷 형식이며, 시계열 누적은 qa-engineer가 담당합니다.
+
 다음 형식으로 덮어쓰기:
 
 ```markdown

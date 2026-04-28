@@ -110,9 +110,36 @@ npm test -- --listTests
 - 테스트가 import 못 하는 모듈 = 정상 (구현 대기 중)
 - 테스트 코드 자체가 SyntaxError = 수정 필요
 
-### 5단계: 결과 보고
+### 5단계: 작업 보고서 갱신
 
-메인 세션에 다음을 보고:
+`_workspace/03_qa_tester_report.md`를 새로 작성(덮어쓰기) 합니다:
+
+```markdown
+# QA Tester Report — {YYYY-MM-DD HH:MM}
+
+## 참조
+- docs/spec.md (수정 시 이 보고서 재생성 필요)
+
+## 작성한 테스트 케이스
+- 총 N개 케이스 / M개 테스트 함수
+- F1: T1.1 ~ T1.6 (6개)
+- F2: T2.1 ~ T2.4 (4개)
+
+## 생성한 파일
+- docs/test-cases.md
+- tests/test_F1_topic_input.py
+- tests/test_F2_sentiment.py
+
+## 실행 가능 상태
+- pytest --collect-only: PASS (수집 가능)
+- 테스트 실행 결과는 구현 후 code-verifier가 검증
+
+## 미완/주의
+- F3 (외부 API) 케이스는 mock 패턴 적용, 실제 호출 금지
+```
+
+### 6단계: 메인 세션에 통보
+
 - 작성한 테스트 케이스 수: N개
 - 작성한 테스트 함수 수: M개
 - spec.md의 기능 ID와 매핑: F1=6개, F2=4개, ...
