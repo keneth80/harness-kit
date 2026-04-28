@@ -123,6 +123,24 @@ code-verifier는 반드시 메인 세션과 다른 모델(Haiku)을 사용합니
 
 ---
 
+## 에이전트 모델 라우팅 정책
+
+이 프로젝트는 비용/품질/속도 균형을 위해 sub-agent별로 모델을 분리한다.
+
+| 에이전트 | 모델 | 이유 |
+|---|---|---|
+| 메인 세션 | Sonnet 또는 Opus | 아키텍처 판단, 통합 |
+| frontend-dev | inherit (메인과 동일) | 구현 품질 중요 |
+| backend-dev | inherit (메인과 동일) | 구현 품질 중요 |
+| qa-tester | haiku | 단순 테스트 작성, 비용 절감 |
+| code-verifier | haiku | self-bias 제거 + 빠른 피드백 |
+
+### 검증 분리 원칙
+
+code-verifier는 반드시 메인 세션과 다른 모델을 사용한다. 같은 모델이 작성한 코드를 같은 모델로 검증하면 self-bias로 인해 문제를 놓치는 경향이 있다. Haiku는 메인이 Sonnet이든 Opus든 충분히 다른 시각을 제공한다.
+
+코드 작성 직후 자동으로 code-verifier에 위임하여 검증 결과를 받은 뒤 다음 작업으로 넘어간다.
+
 ## 첫 실행 가이드
 
 ### 풀 사이클 모드인 경우
