@@ -13,7 +13,7 @@
 # 적용 항목:
 #   1. settings.json — 프로젝트 레벨 (Git 지시어, IDE 연결 해제)
 #   2. 환경변수 — 셸 프로필 (.zshrc/.bashrc)
-#   3. 실행 alias — 최적화 플래그 포함 claude 실행
+#   3. 실행 alias — 최적화 플래그 포함 claude 실행  
 #
 # 참고:
 #   - v2.1.108+ 기준
